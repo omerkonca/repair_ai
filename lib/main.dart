@@ -2,10 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
-void main() => runApp(RepairAIApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final cameras = await availableCameras();
+  final firstCamera = cameras.first;
+
+  runApp(RepairAIApp(camera: firstCamera));
+}
 
 class RepairAIApp extends StatelessWidget {
+  final CameraDescription camera;
+
+  RepairAIApp({required this.camera});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -13,45 +25,41 @@ class RepairAIApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: HomePage(),
+      home: HomePage(camera: camera),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
+  final CameraDescription camera;
+
+  HomePage({required this.camera});
+
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   late CameraController _controller;
-  late List<CameraDescription> cameras;
-  late CameraDescription firstCamera;
+  late Future<void> _initializeControllerFuture;
   String _videoUrl = '';
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
-    initializeCamera();
-  }
-
-  Future<void> initializeCamera() async {
-    cameras = await availableCameras();
-    firstCamera = cameras.first;
     _controller = CameraController(
-      firstCamera,
+      widget.camera,
       ResolutionPreset.high,
     );
-
-    await _controller.initialize();
-    setState(() {});
+    _initializeControllerFuture = _controller.initialize();
   }
 
   Future<void> fetchYouTubeLinks(String query) async {
     final apiKey = 'YOUR_YOUTUBE_API_KEY';
     final response = await http.get(
-      'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=$query&key=$apiKey'
-          as Uri,
+      Uri.parse(
+          'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=$query&key=$apiKey'),
     );
 
     if (response.statusCode == 200) {
@@ -77,10 +85,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_controller.value.isInitialized) {
-      return Container();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text('RepairAI'),
@@ -89,7 +93,16 @@ class _HomePageState extends State<HomePage> {
         children: <Widget>[
           Expanded(
             flex: 4,
-            child: CameraPreview(_controller),
+            child: FutureBuilder<void>(
+              future: _initializeControllerFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done) {
+                  return CameraPreview(_controller);
+                } else {
+                  return Center(child: CircularProgressIndicator());
+                }
+              },
+            ),
           ),
           Expanded(
             flex: 1,
@@ -97,10 +110,20 @@ class _HomePageState extends State<HomePage> {
               child: ElevatedButton(
                 onPressed: () async {
                   try {
+                    await _initializeControllerFuture;
                     final image = await _controller.takePicture();
+
+                    setState(() {
+                      _isProcessing = true;
+                    });
+
                     // Yapay Zeka entegrasyonu ile burada image.path kullanarak analiz yapabilirsiniz
-                    await fetchYouTubeLinks('how to repair ' +
-                        'item'); // item yerine analiz sonucu yazılacak
+                    await fetchYouTubeLinks(
+                        'how to repair item'); // item yerine analiz sonucu yazılacak
+
+                    setState(() {
+                      _isProcessing = false;
+                    });
                   } catch (e) {
                     print(e);
                   }
@@ -113,14 +136,16 @@ class _HomePageState extends State<HomePage> {
             flex: 1,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: SingleChildScrollView(
-                child: Text(
-                  _videoUrl.isNotEmpty
-                      ? _videoUrl
-                      : 'Tamir önerileri burada görünecek.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              child: _isProcessing
+                  ? Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      child: Text(
+                        _videoUrl.isNotEmpty
+                            ? _videoUrl
+                            : 'Tamir önerileri burada görünecek.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
             ),
           ),
         ],
