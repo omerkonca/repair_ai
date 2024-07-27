@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-flimport 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   late Future<void> _initializeControllerFuture;
   String _videoUrl = '';
   bool _isProcessing = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
@@ -56,7 +57,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> fetchYouTubeLinks(String query) async {
-    final apiKey = 'AIzaSyD7tJLEs6Et5jagyn5EZWZEVLZNDDKrse4';
+    final apiKey =
+        'AIzaSyD7tJLEs6Et5jagyn5EZWZEVLZNDDKrse4'; // Bu satırı kendi API anahtarınızla değiştirin
     final response = await http.get(
       Uri.parse(
           'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=$query&key=$apiKey'),
@@ -74,6 +76,16 @@ class _HomePageState extends State<HomePage> {
       });
     } else {
       throw Exception('Failed to load YouTube videos');
+    }
+  }
+
+  Future<void> _launchURL(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      setState(() {
+        _errorMessage = 'Could not launch $url';
+      });
     }
   }
 
@@ -115,17 +127,20 @@ class _HomePageState extends State<HomePage> {
 
                     setState(() {
                       _isProcessing = true;
+                      _errorMessage = '';
                     });
 
-                    // Yapay Zeka entegrasyonu ile burada image.path kullanarak analiz yapabilirsiniz
                     await fetchYouTubeLinks(
-                        'how to repair item'); // item yerine analiz sonucu yazılacak
+                        'repair tutorial'); // Manuel anahtar kelime
 
                     setState(() {
                       _isProcessing = false;
                     });
                   } catch (e) {
-                    print(e);
+                    setState(() {
+                      _isProcessing = false;
+                      _errorMessage = 'An error occurred: $e';
+                    });
                   }
                 },
                 child: Text('Fotoğraf Çek ve Tamir Önerileri Al'),
@@ -139,11 +154,33 @@ class _HomePageState extends State<HomePage> {
               child: _isProcessing
                   ? Center(child: CircularProgressIndicator())
                   : SingleChildScrollView(
-                      child: Text(
-                        _videoUrl.isNotEmpty
-                            ? _videoUrl
-                            : 'Tamir önerileri burada görünecek.',
-                        textAlign: TextAlign.center,
+                      child: Column(
+                        children: [
+                          Text(
+                            _videoUrl.isNotEmpty
+                                ? 'Önerilen Video:'
+                                : 'Tamir önerileri burada görünecek.',
+                            textAlign: TextAlign.center,
+                          ),
+                          if (_videoUrl.isNotEmpty)
+                            GestureDetector(
+                              onTap: () => _launchURL(_videoUrl),
+                              child: Text(
+                                _videoUrl,
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          if (_errorMessage.isNotEmpty)
+                            Text(
+                              _errorMessage,
+                              style: TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                        ],
                       ),
                     ),
             ),
