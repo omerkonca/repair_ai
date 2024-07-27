@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
+flimport 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
@@ -56,7 +56,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> fetchYouTubeLinks(String query) async {
-    final apiKey = 'YOUR_YOUTUBE_API_KEY';
+    final apiKey = 'AIzaSyD7tJLEs6Et5jagyn5EZWZEVLZNDDKrse4';
     final response = await http.get(
       Uri.parse(
           'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=$query&key=$apiKey'),
